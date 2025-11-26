@@ -1,0 +1,18 @@
+pre-commit:
+  commands:
+    isort:
+      files: git ls-files
+      glob: '*.{py}'
+      run: isort {staged_files}
+      stage_fixed: true
+    format:
+      files: git ls-files
+      glob: '*.py'
+      run: ruff format {staged_files}
+    check:
+      files: git ls-files
+      glob: '*.py'
+      run: ruff check {staged_files} --fix
+    mypy:
+      glob: '*.py'
+      run: mypy {staged_files} --ignore-missing-imports
