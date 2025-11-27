@@ -1,13 +1,19 @@
+import os
 from typing import Any, Dict, Protocol
 
 import mlflow
+from dotenv import load_dotenv
 from loguru import logger
+
+load_dotenv()
 
 
 class ExperimentLogger(Protocol):
     def log_metrics(self, metrics: Dict[str, float], step: int) -> None: ...
 
     def log_params(self, params: Dict[str, Any]) -> None: ...
+
+    def log_tags(self, tags: Dict[str, str]) -> None: ...
 
     def log_artifact(self, local_path: str) -> None: ...
 
@@ -20,12 +26,27 @@ class ConsoleLogger:
     def log_params(self, params: Dict[str, Any]) -> None:
         logger.info(f"Params: {params}")
 
+    def log_tags(self, tags: Dict[str, str]) -> None:
+        logger.info(f"Tags: {tags}")
+
     def log_artifact(self, local_path: str) -> None:
         logger.info(f"Artifact saved at: {local_path}")
 
 
 class MLFlowLogger:
     def __init__(self, experiment_name: str = "kadaster_experiment"):
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+        if not tracking_uri:
+            # Ensure logs directory exists
+            os.makedirs("logs", exist_ok=True)
+            tracking_uri = "sqlite:///logs/mlflow.db"
+            logger.info(
+                "MLFLOW_TRACKING_URI not set, falling back to local sqlite: sqlite:///logs/mlflow.db"
+            )
+        else:
+            logger.info(f"Using MLFlow tracking URI: {tracking_uri}")
+
+        mlflow.set_tracking_uri(tracking_uri)
         mlflow.set_experiment(experiment_name)
         self.run = mlflow.start_run()
         logger.info(f"MLflow run started: {self.run.info.run_id}")
@@ -35,6 +56,9 @@ class MLFlowLogger:
 
     def log_params(self, params: Dict[str, Any]) -> None:
         mlflow.log_params(params)
+
+    def log_tags(self, tags: Dict[str, str]) -> None:
+        mlflow.set_tags(tags)
 
     def log_artifact(self, local_path: str) -> None:
         mlflow.log_artifact(local_path)
@@ -54,6 +78,10 @@ class CompositeLogger:
     def log_params(self, params: Dict[str, Any]) -> None:
         for exp_logger in self.loggers:
             exp_logger.log_params(params)
+
+    def log_tags(self, tags: Dict[str, str]) -> None:
+        for exp_logger in self.loggers:
+            exp_logger.log_tags(tags)
 
     def log_artifact(self, local_path: str) -> None:
         for exp_logger in self.loggers:
