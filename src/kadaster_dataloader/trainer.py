@@ -14,7 +14,7 @@ from kadaster_dataloader.dataset import DatasetFactory
 from kadaster_dataloader.evaluation import Evaluator
 from kadaster_dataloader.logging import (CompositeLogger, ConsoleLogger,
                                          MLFlowLogger)
-from kadaster_dataloader.model import (HybridClassifier, SimpleClassifier,
+from kadaster_dataloader.model import (HybridClassifier, NeuralClassifier,
                                        TextVectorizer)
 from kadaster_dataloader.regex_model import RegexGenerator, RegexVectorizer
 
@@ -41,6 +41,7 @@ class TrainingConfig:
     num_epochs: int = 50
     device: str = get_default_device()
     model_class: str = "HybridClassifier"  # Default to Hybrid
+    use_regex: bool = True  # Whether to use regex features
 
 
 class Trainer:
@@ -79,8 +80,8 @@ class Trainer:
         for param in self.vectorizer.model.parameters():
             param.requires_grad = False
 
-        # Initialize Regex Vectorizer if using Hybrid
-        if self.config.model_class == "HybridClassifier":
+        # Initialize Regex Vectorizer if using Hybrid or RegexOnly
+        if self.config.use_regex:
             logger.info("Initializing RegexVectorizer...")
             regex_gen = RegexGenerator(self.config.csv_path)
             # Pass the encoder to ensure alignment
@@ -88,7 +89,9 @@ class Trainer:
                 regex_gen, label_encoder=factory.encoder
             )
 
-        # Get vectorized loaders
+        # Instead of vectorizing the dataset every time
+        # which is a huge bottleneck, we can cache the
+        # vectorized dataset
         self.loaders = factory.get_vectorized_loader(
             self.vectorizer, self.regex_vectorizer
         )
@@ -106,14 +109,25 @@ class Trainer:
     def setup_models(self):
         logger.info(f"Initializing {self.config.model_class}...")
 
-        if self.config.model_class == "SimpleClassifier":
-            self.classifier = SimpleClassifier(
+        if self.config.model_class == "NeuralClassifier":
+            self.classifier = NeuralClassifier(
                 input_dim=self.vectorizer.hidden_size, num_classes=self.num_classes
             )
         elif self.config.model_class == "HybridClassifier":
             self.classifier = HybridClassifier(
                 input_dim=self.vectorizer.hidden_size,
                 regex_dim=self.regex_vectorizer.output_dim,
+                num_classes=self.num_classes,
+            )
+        elif self.config.model_class == "RegexOnlyClassifier":
+            # Ensure regex vectorizer is available
+            if not self.regex_vectorizer:
+                raise ValueError(
+                    "RegexOnlyClassifier requires regex features. Ensure regex_vectorizer is initialized."
+                )
+
+            self.classifier = NeuralClassifier(
+                input_dim=self.regex_vectorizer.output_dim,
                 num_classes=self.num_classes,
             )
         else:
@@ -142,13 +156,20 @@ class Trainer:
         for batch in progress_bar:
             # Handle variable number of items from loader
             if len(batch) == 3:
-                embeddings, regex_feats, labels = batch
+                embeddings, labels, regex_feats = batch
                 embeddings = embeddings.to(self.device)
                 regex_feats = regex_feats.to(self.device)
                 labels = labels.to(self.device)
 
                 self.optimizer.zero_grad()
-                logits = self.classifier(embeddings, regex_feats)
+
+                if self.config.model_class == "HybridClassifier":
+                    logits = self.classifier(embeddings, regex_feats)
+                elif self.config.model_class == "RegexOnlyClassifier":
+                    logits = self.classifier(regex_feats)
+                else:
+                    # NeuralClassifier ignores regex features if present (shouldn't happen with correct loader but safe fallback)
+                    logits = self.classifier(embeddings)
             else:
                 embeddings, labels = batch
                 embeddings = embeddings.to(self.device)
@@ -183,12 +204,17 @@ class Trainer:
         with torch.no_grad():
             for batch in self.loaders["test"]:
                 if len(batch) == 3:
-                    embeddings, regex_feats, labels = batch
+                    embeddings, labels, regex_feats = batch
                     embeddings = embeddings.to(self.device)
                     regex_feats = regex_feats.to(self.device)
                     labels = labels.to(self.device)
 
-                    logits = self.classifier(embeddings, regex_feats)
+                    if self.config.model_class == "HybridClassifier":
+                        logits = self.classifier(embeddings, regex_feats)
+                    elif self.config.model_class == "RegexOnlyClassifier":
+                        logits = self.classifier(regex_feats)
+                    else:
+                        logits = self.classifier(embeddings)
                 else:
                     embeddings, labels = batch
                     embeddings = embeddings.to(self.device)
@@ -228,6 +254,15 @@ class Trainer:
         self.setup_optimization()
 
         self.logger.log_params(asdict(self.config))
+
+        # Log model tags (hashes)
+        tags = {
+            "text_model_name": self.vectorizer.model_name,
+        }
+        if self.regex_vectorizer:
+            tags["regex_hash"] = self.regex_vectorizer.hash
+
+        self.logger.log_tags(tags)
 
         best_val_loss = float("inf")
 

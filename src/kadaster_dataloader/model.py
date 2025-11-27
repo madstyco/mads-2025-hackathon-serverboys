@@ -53,7 +53,7 @@ class TextVectorizer:
         return self.model.config.hidden_size
 
 
-class SimpleClassifier(nn.Module):
+class NeuralClassifier(nn.Module):
     """
     A simple neural network for classification.
     """
