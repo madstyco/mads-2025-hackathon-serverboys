@@ -237,12 +237,14 @@ class DatasetFactory:
             # 3. Regex Features (Optional)
             regex_features = None
             if regex_vectorizer:
-                regex_path = cache_path / f"{model_name_slug}_{split}_regex.pt"
+                # Use the regex hash for the filename to ensure cache invalidation on regex changes
+                regex_hash = getattr(regex_vectorizer, "hash", "default")
+                regex_path = cache_path / f"regex_{regex_hash}_{split}.pt"
 
                 def compute_regex():
                     all_regex = []
                     # Regex vectorizer might be CPU bound, batch size matters less for GPU memory but good for progress bar
-                    dataloader = DataLoader(dataset, batch_size=64, shuffle=False)
+                    dataloader = DataLoader(dataset, batch_size=256, shuffle=False)
                     for batch_texts, _ in tqdm(
                         dataloader, desc=f"Regex Vectorizing {split}"
                     ):
