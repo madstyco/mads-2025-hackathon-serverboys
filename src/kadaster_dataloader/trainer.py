@@ -10,7 +10,6 @@ from loguru import logger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from kadaster_dataloader.analysis import analyze_label_distribution
 from kadaster_dataloader.dataset import DatasetFactory
 from kadaster_dataloader.evaluation import Evaluator
 from kadaster_dataloader.logging import (CompositeLogger, ConsoleLogger,
@@ -57,11 +56,11 @@ class Trainer:
         self.regex_vectorizer = None
         self.classifier = None
 
-        # Optimization
+        # training
         self.loss_fn = None
         self.optimizer = None
 
-        # Components
+        # evaluation
         self.evaluator = None
         self.logger = CompositeLogger([ConsoleLogger(), MLFlowLogger()])
 
@@ -73,11 +72,8 @@ class Trainer:
             split_ratio=self.config.split_ratio,
         )
 
-        # Analyze distribution
-        analyze_label_distribution(factory.train_dataset)
-
         # Initialize Text Vectorizer
-        logger.info("Initializing TextVectorizer...")
+        logger.info("Initializing TextVectorizer & freezing weights...")
         self.vectorizer = TextVectorizer(self.config.model_name)
         self.vectorizer.model.to(self.device)
         for param in self.vectorizer.model.parameters():
