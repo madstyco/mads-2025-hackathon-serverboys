@@ -40,7 +40,7 @@ def train(
         help="Model class to use: NeuralClassifier, HybridClassifier, or RegexOnlyClassifier",
     ),
     model_name: str = typer.Option(
-        "prajjwal1/bert-tiny", help="HuggingFace model name for text vectorization"
+        "prajjwal1/bert-mini", help="HuggingFace model name for text vectorization"
     ),
     epochs: int = typer.Option(10, help="Number of epochs"),
     batch_size: int = typer.Option(32, help="Batch size"),

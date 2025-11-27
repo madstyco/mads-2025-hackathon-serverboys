@@ -15,34 +15,35 @@ A utility for loading and processing Kadaster datasets, specifically designed fo
 ### 1. Analysis
 Generate a label distribution plot to understand the dataset balance.
 ```bash
-uv run python -m kadaster_dataloader.cli analyze
+kadaster analyze
 ```
 Output: `artifacts/img/label_distribution.png`
 
 ### 2. Regex Evaluation
 Evaluate the performance of the regex-based model on the training set.
 ```bash
-uv run python -m kadaster_dataloader.cli evaluate-regex
+kadaster evaluate-regex
 ```
 Output: `artifacts/csv/regex_evaluation.csv`
 
 ### 3. Training
 Train the model. You can choose between the simple BERT classifier or the Hybrid model.
 
+**Regex Only Classifier:**
+```bash
+kadaster train --model-class RegexOnlyClassifier --epochs 5
+```
+
 **Neural Classifier (BERT only):**
 ```bash
-uv run python -m kadaster_dataloader.cli train --model-class NeuralClassifier --epochs 5 --model-name prajjwal1/bert-mini
+kadaster train --model-class NeuralClassifier --epochs 5 --model-name prajjwal1/bert-mini
 ```
 
 **Hybrid Classifier (BERT + Regex):**
 ```bash
-uv run python -m kadaster_dataloader.cli train --model-class HybridClassifier --epochs 5 --model-name prajjwal1/bert-mini
+kadaster train --model-class HybridClassifier --epochs 5 --model-name prajjwal1/bert-mini
 ```
 
-**Regex Only Classifier:**
-```bash
-uv run python -m kadaster_dataloader.cli train --model-class RegexOnlyClassifier --epochs 5
-```
 
 ## Architecture
 
@@ -72,7 +73,7 @@ $$
 
 To optimize performance, the system caches vectorized features in `artifacts/vectorcache/`.
 
-*   **Embeddings**: Cached based on the model name (e.g., `prajjwal1_bert-tiny_train_embeddings.pt`).
+*   **Embeddings**: Cached based on the model name (e.g., `prajjwal1_bert-mini_train_embeddings.pt`).
 *   **Regex Features**: Cached based on a **hash of the regex patterns** (e.g., `regex_f66bce0c_train.pt`).
 
 This ensures that if you modify the regex logic or the CSV file, the hash changes, invalidating the cache and forcing a recomputation.
