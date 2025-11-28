@@ -5,6 +5,8 @@ import mlflow
 from dotenv import load_dotenv
 from loguru import logger
 
+from akte_classifier.utils.env import get_dev_name
+
 load_dotenv()
 
 
@@ -49,7 +51,11 @@ class MLFlowLogger:
         mlflow.set_tracking_uri(tracking_uri)
         mlflow.set_experiment(experiment_name)
         self.run = mlflow.start_run()
-        logger.info(f"MLflow run started: {self.run.info.run_id}")
+
+        # Log developer name
+        dev_name = get_dev_name()
+        mlflow.set_tag("dev_name", dev_name)
+        logger.info(f"MLflow run started: {self.run.info.run_id} (User: {dev_name})")
 
     def log_metrics(self, metrics: Dict[str, float], step: int) -> None:
         mlflow.log_metrics(metrics, step=step)
