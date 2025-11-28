@@ -18,3 +18,4 @@ artifacts/*
 assets/*
 !assets/.gitkeep
 .env
+.lycheecache
