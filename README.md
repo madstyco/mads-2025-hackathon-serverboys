@@ -129,4 +129,10 @@ To log to a remote MLFlow server (e.g., provided by your instructor):
     ```bash
     MLFLOW_TRACKING_URI=http://<host-ip>:5000
     ```
-2.  Run your training commands as usual. The logs will automatically be sent to the server.
+2.  **Developer Tracking**:
+    Copy `.env.sample` to `.env` and set your `DEV_NAME` to track who ran the experiment.
+    ```bash
+    cp .env.sample .env
+    # Edit .env and set DEV_NAME=your_name
+    ```
+3.  Run your training commands as usual. The logs will automatically be sent to the server.
