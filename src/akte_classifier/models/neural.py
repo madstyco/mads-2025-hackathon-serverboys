@@ -34,16 +34,19 @@ class TextVectorizer:
             outputs = self.model(**inputs)
 
         # Mean pooling
-        # attention_mask shape: (batch_size, seq_len)
-        # last_hidden_state shape: (batch_size, seq_len, hidden_dim)
+        # batches of text are padded such that they have the same length,
+        # however, the padding tokens are zero and we dont want to include them in the mean
         attention_mask = inputs["attention_mask"]
+        # attention_mask shape: (batch_size, seq_len)
         token_embeddings = outputs.last_hidden_state
+        # last_hidden_state shape: (batch_size, seq_len, hidden_dim)
 
         input_mask_expanded = (
             attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
         )
 
-        # Sum embeddings and divide by sum of mask
+        # Zero out padding tokens so they don't skew the sum, then
+        # divide by the count of real tokens (not total length) for a true average.
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
         sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
