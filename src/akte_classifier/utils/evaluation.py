@@ -102,7 +102,7 @@ class Evaluator:
 
         output_path = self._get_filename("per_class_metrics", tags, "csv")
         df.to_csv(output_path, index=False)
-        logger.info(f"Per-class metrics saved to {output_path}")
+        logger.success(f"Per-class metrics saved to {output_path}")
 
     def plot_roc_curve(
         self,
@@ -138,7 +138,7 @@ class Evaluator:
         output_path = self._get_filename("roc_curve", tags, "png")
         plt.savefig(output_path)
         plt.close()
-        logger.info(f"ROC curve saved to {output_path}")
+        logger.success(f"ROC curve saved to {output_path}")
 
     def plot_pr_curve(
         self,
@@ -170,7 +170,7 @@ class Evaluator:
         output_path = self._get_filename("pr_curve", tags, "png")
         plt.savefig(output_path)
         plt.close()
-        logger.info(f"PR curve saved to {output_path}")
+        logger.success(f"PR curve saved to {output_path}")
 
     def plot_global_confusion_matrix(
         self,
@@ -202,7 +202,7 @@ class Evaluator:
         output_path = self._get_filename("global_confusion_matrix", tags, "png")
         plt.savefig(output_path)
         plt.close()
-        logger.info(f"Global confusion matrix saved to {output_path}")
+        logger.success(f"Global confusion matrix saved to {output_path}")
 
     def evaluate_regex_performance(
         self,
@@ -260,9 +260,8 @@ class Evaluator:
 
         df = pd.DataFrame(metrics_data)
         df.sort_values("f1", ascending=False, inplace=True)
-
-        logger.info(f"Saving results to {output_path}")
         df.to_csv(output_path, index=False)
+        logger.success(f"Saved results to {output_path}")
         logger.info("\nTop 10 Regexes by F1 Score:")
         logger.info(
             "\n"

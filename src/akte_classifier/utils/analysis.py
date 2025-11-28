@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from loguru import logger
 
-from kadaster_dataloader.datasets.dataset import RechtsfeitDataset
+from akte_classifier.datasets.dataset import RechtsfeitDataset
 
 
 def analyze_label_distribution(dataset: RechtsfeitDataset) -> Dict[str, int]:
@@ -13,7 +13,7 @@ def analyze_label_distribution(dataset: RechtsfeitDataset) -> Dict[str, int]:
     Analyzes and prints the distribution of labels in the dataset.
     Returns a dictionary of code -> count.
     """
-    logger.info("Analyzing label distribution...")
+    logger.debug("Analyzing label distribution...")
 
     # Access underlying HF dataset for speed
     hf_dataset = dataset.dataset
@@ -49,10 +49,10 @@ def analyze_label_distribution(dataset: RechtsfeitDataset) -> Dict[str, int]:
             writer.writerow([code, count, f"{percentage:.2f}%"])
             labeled_counts[str(code)] = count
 
-    logger.info(f"Label distribution saved to {csv_output_path}")
+    logger.success(f"Label distribution saved to {csv_output_path}")
 
     # Visualization
-    logger.info("Generating label distribution plot...")
+    logger.debug("Generating label distribution plot...")
     plt.figure(figsize=(15, 8))
 
     codes = [str(c) for c, _ in sorted_counts]
@@ -68,6 +68,6 @@ def analyze_label_distribution(dataset: RechtsfeitDataset) -> Dict[str, int]:
 
     output_path = "artifacts/img/label_distribution.png"
     plt.savefig(output_path)
-    logger.info(f"Label distribution plot saved to {output_path}")
+    logger.success(f"Label distribution plot saved to {output_path}")
 
     return labeled_counts

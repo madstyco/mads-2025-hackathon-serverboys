@@ -4,13 +4,13 @@ from typing import Optional
 import typer
 from loguru import logger
 
-from kadaster_dataloader.models.regex import RegexGenerator
-from kadaster_dataloader.trainer import Trainer, TrainingConfig
+from akte_classifier.models.regex import RegexGenerator
+from akte_classifier.trainer import Trainer, TrainingConfig
 
 app = typer.Typer(no_args_is_help=True)
 
 logger.remove()
-logger.add(sys.stderr, level="INFO")
+logger.add(sys.stderr, level="SUCCESS")
 logger.add("logs/cli.log", rotation="1 MB", level="DEBUG")
 
 
@@ -21,16 +21,14 @@ def analyze(
     """
     Analyze the dataset and generate a label distribution plot.
     """
-    from kadaster_dataloader.datasets.dataset import DatasetFactory
-    from kadaster_dataloader.utils.analysis import analyze_label_distribution
+    from akte_classifier.datasets.dataset import DatasetFactory
+    from akte_classifier.utils.analysis import analyze_label_distribution
 
-    logger.info("Loading data for analysis...")
     factory = DatasetFactory(data_path)
 
-    logger.info("Analyzing label distribution...")
     assert factory.train_dataset is not None, "Train dataset is None"
     analyze_label_distribution(factory.train_dataset)
-    logger.info("Analysis complete. Check artifacts/img/label_distribution.png")
+    logger.success("Analysis Completed.")
 
 
 @app.command()
@@ -69,7 +67,7 @@ def train(
 
 
 @app.command()
-def evaluate_regex(
+def regex(
     data_path: str = "assets/aktes.jsonl",
     csv_path: str = "assets/rechtsfeiten.csv",
     output_path: str = "artifacts/csv/regex_evaluation.csv",
@@ -79,9 +77,9 @@ def evaluate_regex(
     """
     from pathlib import Path
 
-    from kadaster_dataloader.datasets.dataset import DatasetFactory
-    from kadaster_dataloader.models.regex import RegexVectorizer
-    from kadaster_dataloader.utils.evaluation import Evaluator
+    from akte_classifier.datasets.dataset import DatasetFactory
+    from akte_classifier.models.regex import RegexVectorizer
+    from akte_classifier.utils.evaluation import Evaluator
 
     logger.info("Initializing DatasetFactory...")
     factory = DatasetFactory(data_path)

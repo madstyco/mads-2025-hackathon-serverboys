@@ -23,7 +23,9 @@ def load_or_compute_tensor(
     if path.exists() and not force_recompute:
         logger.info(f"Loading cached tensor from {path}...")
         try:
-            return torch.load(path)
+            tensor = torch.load(path)
+            logger.success(f"Loaded cached tensor from {path}")
+            return tensor
         except Exception as e:
             logger.warning(f"Failed to load cache from {path}: {e}. Recomputing...")
 
@@ -33,7 +35,7 @@ def load_or_compute_tensor(
     # Ensure directory exists
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Saving tensor to {path}...")
+    logger.success(f"Computed tensor and saved to {path}")
     torch.save(tensor, path)
 
     return tensor

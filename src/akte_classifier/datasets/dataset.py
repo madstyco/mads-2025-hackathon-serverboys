@@ -149,17 +149,20 @@ class DatasetFactory:
         test_data = split_ds["test"]
 
         # Build encoder based ONLY on training data
-        logger.info("Building label index from training data...")
+        logger.debug("Building label index from training data...")
         train_codes: List[int] = []
         for codes in train_data["rechtsfeitcodes"]:
             # Ensure all codes are integers to avoid duplicates (str vs int)
             train_codes.extend([int(c) for c in codes])
 
         self.encoder = LabelEncoder(train_codes)
-        logger.info(f"Found {len(self.encoder)} unique categories (including Unknown).")
+        logger.debug(
+            f"Found {len(self.encoder)} unique categories (including Unknown)."
+        )
 
         self.train_dataset = RechtsfeitDataset(train_data, self.encoder)
         self.test_dataset = RechtsfeitDataset(test_data, self.encoder)
+        logger.success("Data prepared successfully.")
 
     def get_dataset(self) -> Dict[str, RechtsfeitDataset]:
         if self.train_dataset is None or self.test_dataset is None:
@@ -194,7 +197,7 @@ class DatasetFactory:
         If regex_vectorizer is provided, also computes regex features.
         Results are cached to disk.
         """
-        from kadaster_dataloader.utils.tensor import load_or_compute_tensor
+        from akte_classifier.utils.tensor import load_or_compute_tensor
 
         vectorized_datasets = {}
         splits = ["train", "test"]
