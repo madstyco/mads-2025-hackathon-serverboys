@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,9 +12,12 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from akte_classifier.datasets.dataset import DatasetFactory
+from akte_classifier.models.llm import LLMClassifier
 from akte_classifier.models.neural import (HybridClassifier, NeuralClassifier,
                                            TextVectorizer)
+from akte_classifier.models.prompts import ClassificationPromptTemplate
 from akte_classifier.models.regex import RegexGenerator, RegexVectorizer
+from akte_classifier.utils.data import get_long_tail_labels, load_descriptions
 from akte_classifier.utils.evaluation import Evaluator
 from akte_classifier.utils.logging import (CompositeLogger, ConsoleLogger,
                                            MLFlowLogger)
@@ -45,6 +49,8 @@ class TrainingConfig:
     hidden_dim: int = 256  # Hidden layer dimension
     max_length: Optional[int] = None  # Max token length (None = auto)
     pooling: Optional[str] = None  # Pooling strategy: "mean", "cls", or None (auto)
+    long_tail_threshold: Optional[int] = None  # Threshold for long-tail labels
+    experiment_name: str = "kadaster_experiment"  # MLFlow experiment name
 
 
 class Trainer:
@@ -313,3 +319,205 @@ class Trainer:
                 self.evaluator.save_per_class_metrics(
                     val_results["targets"], val_results["preds"], tags=tags
                 )
+
+
+class LLMRunner:
+    def __init__(
+        self,
+        threshold: int,
+        limit: Optional[int],
+        model_name: str,
+        experiment_name: str,
+        max_length: Optional[int] = None,
+    ):
+        self.threshold = threshold
+        self.limit = limit
+        self.model_name = model_name
+        self.experiment_name = experiment_name
+        self.max_length = max_length
+
+        # Init MLFlow Logger
+        self.mlflow_logger = MLFlowLogger(experiment_name=experiment_name)
+        self.mlflow_logger.enable_genai_autolog()
+
+    def _load_resources(self):
+        """
+        Loads long-tail labels, descriptions, dataset, and initializes the classifier.
+        """
+        # 1. Get long-tail labels
+        dist_path = "artifacts/csv/label_distribution.csv"
+        long_tail_codes = get_long_tail_labels(dist_path, self.threshold)
+        if not long_tail_codes:
+            logger.error("No long-tail labels found. Check threshold or file.")
+            return None, None, None, None
+
+        logger.info(f"Found {len(long_tail_codes)} long-tail labels.")
+
+        # 2. Get descriptions for these labels
+        csv_path = "assets/rechtsfeiten.csv"
+        descriptions = load_descriptions(csv_path, long_tail_codes)
+
+        if not descriptions:
+            logger.error("No descriptions found for the long-tail labels.")
+            return None, None, None, None
+
+        # 3. Init DatasetFactory with filtering
+        factory = DatasetFactory(
+            file_path="assets/aktes.jsonl",
+            long_tail_threshold=self.threshold,
+            batch_size=1,
+        )
+
+        if not factory.train_dataset or len(factory.train_dataset) == 0:
+            logger.error("No samples found in dataset after filtering.")
+            return None, None, None, None
+
+        # 4. Init LLM Classifier
+        prompt_template = ClassificationPromptTemplate()
+        classifier = LLMClassifier(
+            model_name=self.model_name,
+            descriptions=descriptions,
+            prompt_template=prompt_template,
+            max_length=self.max_length,
+        )
+
+        return long_tail_codes, descriptions, factory, classifier
+
+    def _run_inference(self, factory, classifier, long_tail_codes):
+        """
+        Runs the classification loop.
+        """
+        logger.info("Classifying samples...")
+
+        # Access the underlying HuggingFace dataset to get raw text
+        hf_dataset = factory.train_dataset.dataset
+
+        all_true_labels = []
+        all_pred_labels = []
+        predictions_data = []
+
+        count = 0
+
+        # Determine total for progress bar
+        total_samples = len(hf_dataset)
+        if self.limit is not None:
+            total_samples = min(self.limit, total_samples)
+
+        for i in tqdm(range(len(hf_dataset)), total=total_samples, desc="Classifying"):
+            if self.limit is not None and count >= self.limit:
+                break
+
+            sample = hf_dataset[i]
+            text = sample["text"]
+            akte_id = sample.get("akteId", "unknown")
+            true_labels = [int(c) for c in sample["rechtsfeitcodes"]]
+
+            # Only process if it actually has long-tail labels (double check, though factory filtered it)
+            relevant_true_labels = [c for c in true_labels if c in long_tail_codes]
+
+            predicted_labels = classifier.classify(text)
+
+            # Save prediction data
+            predictions_data.append(
+                {
+                    "akte_id": akte_id,
+                    "text_snippet": text[:30] + "...",
+                    "true_labels": str(relevant_true_labels),
+                    "predicted_labels": str(predicted_labels),
+                    "all_true_labels": str(true_labels),
+                }
+            )
+
+            # For evaluation, we need to map these to a consistent binary format or similar
+            # We can create binary vectors for the long_tail_codes.
+
+            true_binary = [
+                1 if c in relevant_true_labels else 0 for c in long_tail_codes
+            ]
+            pred_binary = [1 if c in predicted_labels else 0 for c in long_tail_codes]
+
+            all_true_labels.append(true_binary)
+            all_pred_labels.append(pred_binary)
+
+            count += 1
+
+        return predictions_data, all_true_labels, all_pred_labels
+
+    def _save_predictions(self, predictions_data):
+        """
+        Saves predictions to CSV.
+        """
+        safe_model_name = self.model_name.replace("/", "_")
+        if predictions_data:
+            df_preds = pd.DataFrame(predictions_data)
+            pred_csv_path = f"artifacts/csv/llm_predictions_{safe_model_name}.csv"
+            df_preds.to_csv(pred_csv_path, index=False)
+            logger.success(f"Saved predictions to {pred_csv_path}")
+            self.mlflow_logger.log_artifact(pred_csv_path)
+
+    def _evaluate(self, true_labels, pred_labels, long_tail_codes):
+        """
+        Calculates metrics and generates plots.
+        """
+        if not true_labels:
+            return
+
+        y_true = np.array(true_labels)
+        y_pred = np.array(pred_labels)
+
+        safe_model_name = self.model_name.replace("/", "_")
+
+        # Set run name to model name and log tags
+        self.mlflow_logger.log_tags(
+            {"mlflow.runName": self.model_name, "text_model_name": self.model_name}
+        )
+
+        # Calculate scalar metrics using Evaluator
+        class_names = [str(c) for c in long_tail_codes]
+        evaluator = Evaluator(num_classes=len(long_tail_codes), class_names=class_names)
+
+        metrics = evaluator.compute_metrics(y_true, y_pred)
+
+        logger.info(f"Evaluation Metrics: {metrics}")
+        self.mlflow_logger.log_metrics(metrics, step=0)
+
+        # Generate plots using Evaluator
+        tags = {"text_model_name": self.model_name}
+
+        # Per-class metrics
+        evaluator.save_per_class_metrics(y_true, y_pred, tags=tags)
+        self.mlflow_logger.log_artifact(
+            f"artifacts/csv/per_class_metrics_{safe_model_name}.csv"
+        )
+
+        # Confusion Matrix
+        evaluator.plot_global_confusion_matrix(y_true, y_pred, tags=tags)
+        self.mlflow_logger.log_artifact(
+            f"artifacts/img/global_confusion_matrix_{safe_model_name}.png"
+        )
+
+        # ROC and PR curves
+        evaluator.plot_roc_curve(y_true, y_pred, tags=tags)
+        self.mlflow_logger.log_artifact(
+            f"artifacts/img/roc_curve_{safe_model_name}.png"
+        )
+
+        evaluator.plot_pr_curve(y_true, y_pred, tags=tags)
+        self.mlflow_logger.log_artifact(f"artifacts/img/pr_curve_{safe_model_name}.png")
+
+    def run(self):
+        logger.info(
+            f"Starting LLM classification (threshold={self.threshold}, limit={self.limit})"
+        )
+
+        long_tail_codes, descriptions, factory, classifier = self._load_resources()
+
+        if not classifier:
+            return
+
+        predictions_data, all_true_labels, all_pred_labels = self._run_inference(
+            factory, classifier, long_tail_codes
+        )
+
+        self._save_predictions(predictions_data)
+        self._evaluate(all_true_labels, all_pred_labels, long_tail_codes)

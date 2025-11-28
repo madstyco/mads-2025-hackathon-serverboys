@@ -57,6 +57,16 @@ class MLFlowLogger:
         mlflow.set_tag("dev_name", dev_name)
         logger.info(f"MLflow run started: {self.run.info.run_id} (User: {dev_name})")
 
+    def enable_genai_autolog(self) -> None:
+        """
+        Enables MLFlow autologging for OpenAI (GenAI).
+        """
+        try:
+            mlflow.openai.autolog()
+            logger.info("Enabled MLFlow OpenAI autologging.")
+        except Exception as e:
+            logger.warning(f"Failed to enable OpenAI autologging: {e}")
+
     def log_metrics(self, metrics: Dict[str, float], step: int) -> None:
         mlflow.log_metrics(metrics, step=step)
 

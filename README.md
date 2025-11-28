@@ -102,6 +102,40 @@ We can combine these two approaches by using a `HybridClassifier`.
 - we then concatenate the two vectors: $h\colon \mathcal{T} \to \mathbb{R}^{d_r + d_v}$
 - finally, we add a neural network $m\colon \mathbb{R}^{d_{r} + d_{v}} \to \mathbb{R}^{C}$ where $C$ is the number of classes in our training set
 
+## 4. LLM for the long tail
+
+The dataset contains a "long tail" of labels that appear very infrequently. Traditional supervised learning models (like the Neural or Hybrid classifiers above) struggle with these classes because there are not enough examples to learn from.
+
+To address this, we use a **Zero-Shot Learning** approach with Large Language Models (LLMs). Instead of training a model on examples, we provide the LLM with the *description* of the label (from `rechtsfeiten.csv`) and the text of the document, and ask it to determine if the label applies.
+
+### 4.1 Usage
+
+You can use the `llm-classify` command to run this process.
+
+```bash
+kadaster llm-classify --threshold 10 --limit 20
+```
+
+- `--threshold`: The maximum number of occurrences for a label to be considered "long-tail". Labels with fewer than this many examples in the training set will be targeted.
+- `--limit`: (Optional) Limit the number of documents to process (useful for testing).
+- `--model-name`: The LLM to use.
+- `--max-length`: (Optional) Truncate input text to this many tokens to avoid context length errors.
+
+### 4.2 Available Models
+
+We support several models via the Nebius API. You can switch models using the `--model-name` argument:
+
+- `meta-llama/Meta-Llama-3.1-8B-Instruct-fast` (Default)
+- `Qwen/Qwen3-32B-fast`
+- `Qwen/Qwen3-30B-A3B-Thinking-2507`
+- `openai/gpt-oss-20b`
+- `openai/gpt-oss-120b`
+
+Example:
+```bash
+kadaster llm-classify --model-name Qwen/Qwen3-32B-fast --threshold 15
+```
+
 ## Caching & Versioning
 
 To optimize performance, the system caches vectorized features in `artifacts/vectorcache/`.

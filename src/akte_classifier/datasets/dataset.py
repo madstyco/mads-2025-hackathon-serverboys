@@ -132,10 +132,17 @@ class VectorizedRechtsfeitDataset(Dataset):
 
 
 class DatasetFactory:
-    def __init__(self, file_path: str, batch_size: int = 32, split_ratio: float = 0.8):
+    def __init__(
+        self,
+        file_path: str,
+        batch_size: int = 32,
+        split_ratio: float = 0.8,
+        long_tail_threshold: Optional[int] = None,
+    ):
         self.file_path: str = file_path
         self.batch_size: int = batch_size
         self.split_ratio: float = split_ratio
+        self.long_tail_threshold: Optional[int] = long_tail_threshold
 
         self.train_dataset: Optional[RechtsfeitDataset] = None
         self.test_dataset: Optional[RechtsfeitDataset] = None
@@ -146,6 +153,31 @@ class DatasetFactory:
     def _prepare_data(self) -> None:
         logger.info(f"Loading {self.file_path}...")
         full_dataset = load_dataset("json", data_files=self.file_path, split="train")
+
+        # Filter for long-tail if requested
+        if self.long_tail_threshold is not None:
+            from akte_classifier.utils.data import get_long_tail_labels
+
+            # Assuming label_distribution.csv is in artifacts/csv/
+            # Ideally this path should be configurable, but for now we hardcode relative to project root
+            dist_path = "artifacts/csv/label_distribution.csv"
+            long_tail_codes = set(
+                get_long_tail_labels(dist_path, self.long_tail_threshold)
+            )
+            logger.info(
+                f"Filtering for {len(long_tail_codes)} long-tail labels (threshold < {self.long_tail_threshold})"
+            )
+
+            def filter_long_tail(example):
+                # Keep example if it has at least one long-tail code
+                example_codes = [int(c) for c in example["rechtsfeitcodes"]]
+                return any(c in long_tail_codes for c in example_codes)
+
+            original_len = len(full_dataset)
+            full_dataset = full_dataset.filter(filter_long_tail)
+            logger.info(
+                f"Filtered dataset from {original_len} to {len(full_dataset)} samples."
+            )
 
         split_ds = full_dataset.train_test_split(train_size=self.split_ratio, seed=42)
         train_data = split_ds["train"]

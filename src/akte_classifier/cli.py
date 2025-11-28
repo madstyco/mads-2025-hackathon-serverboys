@@ -15,6 +15,37 @@ logger.add("logs/cli.log", rotation="1 MB", level="DEBUG")
 
 
 @app.command()
+def llm_classify(
+    threshold: int = typer.Option(10, help="Threshold for long-tail labels"),
+    limit: Optional[int] = typer.Option(
+        None, help="Number of samples to classify (None for all)"
+    ),
+    model_name: str = typer.Option(
+        "meta-llama/Meta-Llama-3.1-8B-Instruct-fast", help="LLM model name"
+    ),
+    experiment_name: str = typer.Option(
+        "test_experiment", help="MLFlow experiment name"
+    ),
+    max_length: Optional[int] = typer.Option(
+        None, help="Max token length (None = auto/unlimited)"
+    ),
+):
+    """
+    Classify long-tail samples using an LLM.
+    """
+    from akte_classifier.trainer import LLMRunner
+
+    runner = LLMRunner(
+        threshold=threshold,
+        limit=limit,
+        model_name=model_name,
+        experiment_name=experiment_name,
+        max_length=max_length,
+    )
+    runner.run()
+
+
+@app.command()
 def analyze(
     data_path: str = "assets/aktes.jsonl",
 ):
@@ -50,6 +81,9 @@ def train(
     pooling: Optional[str] = typer.Option(
         None, help="Pooling strategy: 'mean', 'cls', or None (auto)"
     ),
+    experiment_name: str = typer.Option(
+        "kadaster_experiment", help="MLFlow experiment name"
+    ),
     device: Optional[str] = None,
 ):
     """
@@ -68,6 +102,7 @@ def train(
         hidden_dim=hidden_dim,
         max_length=max_length,
         pooling=pooling,
+        experiment_name=experiment_name,
     )
     if device:
         config.device = device
