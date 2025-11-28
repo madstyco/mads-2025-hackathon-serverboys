@@ -74,11 +74,15 @@ class Trainer:
         )
 
         # Initialize Text Vectorizer
-        logger.info("Initializing TextVectorizer & freezing weights...")
-        self.vectorizer = TextVectorizer(self.config.model_name)
-        self.vectorizer.model.to(self.device)
-        for param in self.vectorizer.model.parameters():
-            param.requires_grad = False
+        if self.config.model_class in ["NeuralClassifier", "HybridClassifier"]:
+            self.vectorizer = TextVectorizer(self.config.model_name)
+            self.vectorizer.model.to(self.device)
+            for param in self.vectorizer.model.parameters():
+                param.requires_grad = False
+            logger.info("Intialized TextVectorizer & freezing weights...")
+        else:
+            logger.info("Skipping TextVectorizer initialization...")
+            self.vectorizer = None
 
         # Initialize Regex Vectorizer if using Hybrid or RegexOnly
         if self.config.use_regex:

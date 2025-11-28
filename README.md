@@ -64,10 +64,23 @@ For example, the code 621 occurs only 2 times in the data, and this regex has a 
 
 This should guide you to see how usefull your regexes are, but also helps you invest your time wisely (working on a regex that can only find 2 items in a dataset of about 20k wont have much impact)
 
+### 3.2 Regex with NN
+A very simple way to improve the regex is to take the binary-regex-vector as input, and compose the vectorizer with a basic neural network that does $g\colon \{0,1\}^{d} \to \mathbb{R}^{d}$ where the outputvector are logits and $d$ is the number of classes in our training set.
+
+If you run
+```bash
+kadaster train --model-class RegexOnlyClassifier --epochs 5
+``` 
+this will:
+- 
+
+
+
+
 ### 3.2 TextVectorizers
 From huggingface, we can download pre-trained text vectorizers.
+For example, we can use [prajjwal1/bert-tiny](https://huggingface.co/prajjwal1/bert-tiny)
 
-Train the model. You can choose between the simple BERT classifier or the Hybrid model.
 
 **Regex Only Classifier:**
 ```bash

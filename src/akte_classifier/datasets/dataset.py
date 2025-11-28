@@ -120,7 +120,10 @@ class VectorizedRechtsfeitDataset(Dataset):
             if self.embeddings is not None:
                 return self.embeddings[idx], self.labels[idx], self.regex_features[idx]
             else:
-                return None, self.labels[idx], self.regex_features[idx]
+                # If we only have regex features (e.g. RegexOnlyClassifier),
+                # we return them as the "input" features to match the (inputs, labels) signature
+                # expected by the trainer's default loop.
+                return self.regex_features[idx], self.labels[idx]
 
         if self.embeddings is None:
             raise ValueError("Both embeddings and regex_features cannot be None")
