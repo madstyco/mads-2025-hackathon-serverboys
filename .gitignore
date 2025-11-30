@@ -20,3 +20,4 @@ assets/*
 .env
 .lycheecache
 .agreed_to_tos
+.coverage
