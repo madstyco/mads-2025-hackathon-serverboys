@@ -19,3 +19,4 @@ assets/*
 !assets/.gitkeep
 .env
 .lycheecache
+.agreed_to_tos
