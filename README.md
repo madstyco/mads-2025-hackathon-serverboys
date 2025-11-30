@@ -182,25 +182,48 @@ kadaster eval --eval-file assets/test.jsonl --timestamp 20251130_204405
 ## Your task
 Your task is to improve the model. Try to achieve the highest possible F1 micro score.
 
-Make sure we can evaluate the model with the eval command; this will use the saved modelweights in `artifacts/models/`. Eg
+Make sure we can evaluate the model with the eval command; this will use the saved modelweights in `artifacts/models/`.
 
-```bash
-kadaster eval \
-  --eval-file assets/test.jsonl \
-  --model-class HybridClassifier \
-  --model-path artifacts/models/prajjwal1_bert-tiny_f66bce0c_20251130_204405.pt\
-  --codes-path artifacts/models/prajjwal1_bert-tiny_f66bce0c_20251130_204405_codes.json 
+## MLFlow Tracking
+
+To log to a remote MLFlow server (IP address and PORT provided by your instructor):
+
+1.  Open `.env` and set the tracking URI:
+    ```bash
+    MLFLOW_TRACKING_URI=http://<host-ip>:<port>
+    ```
+2.  **Developer Tracking**:
+    Copy `.env.sample` to `.env` and set your `DEV_NAME` to track who ran the experiment.
+    ```bash
+    cp .env.sample .env
+    # Edit .env and set DEV_NAME=your_name
+    ```
+3.  Run your training commands as usual. The logs will automatically be sent to the server.
+
+## Embedding models from Nebius
+
+You have access to Nebius embedding models. I havent had the time to implement this myself, but this is the demo code;
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.tokenfactory.nebius.com/v1/",
+    api_key=os.environ.get("NEBIUS_API_KEY")
+)
+
+response = client.embeddings.create(
+    model="BAAI/bge-en-icl",
+    input="USER_INPUT"
+)
+
+print(response.to_json())
 ```
-
-kadaster eval \
-  --eval-file assets/aktes-eval.jsonl \
-  --model-path artifacts/models/BAAI_bge-small-en-v1.5_20251130_175919.pt \
-  --codes-path artifacts/models/BAAI_bge-small-en-v1.5_20251130_175919_codes.json \
-  --model-name BAAI/bge-small-en-v1.5 \
-  --batch-size 32
-
-should run the trained model on the `assets/aktes-eval.jsonl` file and output the results to `artifacts/csv/eval_results.csv`.
-
+And you can use these models:
+- BAAI/bge-multilingual-gemma2 (8k context)
+- BAAI/bge-en-icl (32k context)
+- intfloat/e5-mistral-7b-instruct (32k context)
+- Qwen/Qwen3-Embedding-8B (32k context)
 
 ## Caching & Versioning
 
@@ -213,26 +236,3 @@ This ensures that if you modify the regex logic or the CSV file, the hash change
 
 Similarly, evaluation results are saved with the hash (e.g., `artifacts/csv/regex_evaluation_f66bce0c.csv`) to allow tracking performance across different regex versions.
 
-## MLFlow Tracking
-
-### Local Setup
-By default, experiments are logged to a local SQLite database in `logs/mlflow.db`. To view the dashboard:
-
-```bash
-uv run mlflow ui --backend-store-uri sqlite:///logs/mlflow.db
-```
-
-### Remote Setup
-To log to a remote MLFlow server (e.g., provided by your instructor):
-
-1.  Open `.env` and set the tracking URI:
-    ```bash
-    MLFLOW_TRACKING_URI=http://<host-ip>:5000
-    ```
-2.  **Developer Tracking**:
-    Copy `.env.sample` to `.env` and set your `DEV_NAME` to track who ran the experiment.
-    ```bash
-    cp .env.sample .env
-    # Edit .env and set DEV_NAME=your_name
-    ```
-3.  Run your training commands as usual. The logs will automatically be sent to the server.
