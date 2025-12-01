@@ -590,7 +590,22 @@ class LLMRunner:
             logger.error("No descriptions found for the long-tail labels.")
             return None, None, None, None
 
-        # 3. Init DatasetFactory with filtering
+        # 3. Analyze code combinations for prompt context
+        from akte_classifier.utils.patterns import (
+            analyze_code_combinations,
+            format_code_combinations_info,
+        )
+
+        logger.info("Analyzing code combination patterns...")
+        patterns = analyze_code_combinations(
+            train_file="assets/train.jsonl",
+            long_tail_codes=long_tail_codes,
+            min_cooccurrence=2,
+        )
+        code_combinations_info = format_code_combinations_info(patterns, descriptions)
+        logger.info(f"Found {len(patterns['pairs'])} frequent code combinations.")
+
+        # 4. Init DatasetFactory with filtering
         factory = DatasetFactory(
             file_path="assets/train.jsonl",
             long_tail_threshold=self.threshold,
@@ -601,8 +616,11 @@ class LLMRunner:
             logger.error("No samples found in dataset after filtering.")
             return None, None, None, None
 
-        # 4. Init LLM Classifier
+        # 5. Init LLM Classifier with enhanced prompt template
         prompt_template = ClassificationPromptTemplate()
+        # Store code combinations info for use in format method
+        prompt_template.code_combinations_info = code_combinations_info
+        
         classifier = LLMClassifier(
             model_name=self.model_name,
             descriptions=descriptions,

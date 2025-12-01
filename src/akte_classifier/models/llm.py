@@ -59,7 +59,15 @@ class LLMClassifier:
                 # logger.warning(f"Truncating text from {len(text)} to {char_limit} chars.")
                 text = text[:char_limit]
 
-        prompt = self.prompt_template.format(descriptions=self.descriptions, text=text)
+        # Get code combinations info if available in prompt template
+        code_combinations_info = getattr(
+            self.prompt_template, "code_combinations_info", None
+        )
+        prompt = self.prompt_template.format(
+            descriptions=self.descriptions,
+            text=text,
+            code_combinations_info=code_combinations_info,
+        )
 
         try:
             response = self.client.chat.completions.create(
