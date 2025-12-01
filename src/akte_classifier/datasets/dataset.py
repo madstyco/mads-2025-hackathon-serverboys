@@ -257,10 +257,18 @@ class DatasetFactory:
         # Create a slug for the model name to use in filenames
         if vectorizer:
             model_name_slug = vectorizer.model_name.replace("/", "_")
-            device = next(vectorizer.model.parameters()).device
-            logger.info(
-                f"Vectorizing datasets on {device} for model {vectorizer.model_name}..."
-            )
+            # Handle both local (TextVectorizer) and API (NebiusTextVectorizer)
+            if hasattr(vectorizer, 'model'):
+                device = next(vectorizer.model.parameters()).device
+                logger.info(
+                    f"Vectorizing datasets on {device} for model {vectorizer.model_name}..."
+                )
+            else:
+                # API-based vectorizer (Nebius) - no local model
+                device = "cpu"  # Embeddings come from API
+                logger.info(
+                    f"Vectorizing datasets via API for model {vectorizer.model_name}..."
+                )
         else:
             model_name_slug = "no_text_model"
             logger.info("No text vectorizer provided. Skipping text embeddings.")

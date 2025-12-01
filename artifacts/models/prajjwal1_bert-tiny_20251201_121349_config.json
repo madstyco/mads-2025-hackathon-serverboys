@@ -1,0 +1,19 @@
+{
+    "data_path": "assets/train.jsonl",
+    "csv_path": "assets/rechtsfeiten.csv",
+    "batch_size": 32,
+    "split_ratio": 0.8,
+    "model_name": "prajjwal1/bert-tiny",
+    "learning_rate": 0.001,
+    "num_epochs": 10,
+    "device": "mps",
+    "model_class": "NeuralClassifier",
+    "use_regex": false,
+    "hidden_dim": 256,
+    "max_length": null,
+    "pooling": null,
+    "long_tail_threshold": null,
+    "experiment_name": "kadaster_experiment",
+    "patience": 3,
+    "min_delta": 0.0
+}

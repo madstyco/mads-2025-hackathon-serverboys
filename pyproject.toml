@@ -47,3 +47,13 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-v --cov=src/akte_classifier --cov-report=term-missing"
 testpaths = ["tests"]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E501"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.black]
+line-length = 120

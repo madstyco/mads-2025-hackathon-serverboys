@@ -15,8 +15,12 @@ from tqdm import tqdm
 
 from akte_classifier.datasets.dataset import DatasetFactory
 from akte_classifier.models.llm import LLMClassifier
-from akte_classifier.models.neural import (HybridClassifier, NeuralClassifier,
-                                           TextVectorizer)
+from akte_classifier.models.neural import (
+    HybridClassifier,
+    NebiusTextVectorizer,
+    NeuralClassifier,
+    TextVectorizer,
+)
 from akte_classifier.models.prompts import ClassificationPromptTemplate
 from akte_classifier.models.regex import RegexGenerator, RegexVectorizer
 from akte_classifier.utils.data import get_long_tail_labels, load_descriptions
@@ -56,6 +60,7 @@ class TrainingConfig:
     experiment_name: str = "kadaster_experiment"  # MLFlow experiment name
     patience: int = 5
     min_delta: float = 0.001
+    use_nebius: bool = False  # Use Nebius API for embeddings
 
 
 class Trainer:
@@ -86,9 +91,7 @@ class Trainer:
         self.best_config_path: Optional[str] = None
         self.run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        self.early_stopping = EarlyStopping(
-            patience=self.config.patience, verbose=True, delta=self.config.min_delta
-        )
+        self.early_stopping = EarlyStopping(patience=self.config.patience, verbose=True, delta=self.config.min_delta)
 
     def get_data(self):
         logger.info("Initializing DatasetFactory...")
@@ -100,15 +103,22 @@ class Trainer:
 
         # Initialize Text Vectorizer
         if self.config.model_class in ["NeuralClassifier", "HybridClassifier"]:
-            self.vectorizer = TextVectorizer(
-                self.config.model_name,
-                max_length=self.config.max_length,
-                pooling=self.config.pooling,
-            )
-            self.vectorizer.model.to(self.device)
-            for param in self.vectorizer.model.parameters():
-                param.requires_grad = False
-            logger.info("Intialized TextVectorizer & freezing weights...")
+            if self.config.use_nebius:
+                self.vectorizer = NebiusTextVectorizer(
+                    self.config.model_name,
+                    max_length=self.config.max_length,
+                )
+                logger.info("Initialized NebiusTextVectorizer (API-based)")
+            else:
+                self.vectorizer = TextVectorizer(
+                    self.config.model_name,
+                    max_length=self.config.max_length,
+                    pooling=self.config.pooling,
+                )
+                self.vectorizer.model.to(self.device)
+                for param in self.vectorizer.model.parameters():
+                    param.requires_grad = False
+                logger.info("Initialized TextVectorizer & freezing weights...")
         else:
             logger.info("Skipping TextVectorizer initialization...")
             self.vectorizer = None
@@ -118,20 +128,13 @@ class Trainer:
             logger.info("Initializing RegexVectorizer...")
             regex_gen = RegexGenerator(self.config.csv_path)
             # Pass the encoder to ensure alignment
-            self.regex_vectorizer = RegexVectorizer(
-                regex_gen, label_encoder=factory.encoder
-            )
+            self.regex_vectorizer = RegexVectorizer(regex_gen, label_encoder=factory.encoder)
 
-        self.loaders = factory.get_vectorized_loader(
-            self.vectorizer, self.regex_vectorizer
-        )
+        self.loaders = factory.get_vectorized_loader(self.vectorizer, self.regex_vectorizer)
 
         self.num_classes = len(factory.encoder)
         self.encoder_codes = factory.encoder.unique_codes
-        self.class_names = [
-            str(factory.encoder.idx2code.get(i + 1, i + 1))
-            for i in range(self.num_classes)
-        ]
+        self.class_names = [str(factory.encoder.idx2code.get(i + 1, i + 1)) for i in range(self.num_classes)]
         logger.info(f"Number of classes: {self.num_classes}")
 
         # Initialize Evaluator
@@ -156,9 +159,7 @@ class Trainer:
         elif self.config.model_class == "RegexOnlyClassifier":
             # Ensure regex vectorizer is available
             if not self.regex_vectorizer:
-                raise ValueError(
-                    "RegexOnlyClassifier requires regex features. Ensure regex_vectorizer is initialized."
-                )
+                raise ValueError("RegexOnlyClassifier requires regex features. Ensure regex_vectorizer is initialized.")
 
             self.classifier = NeuralClassifier(
                 input_dim=self.regex_vectorizer.output_dim,
@@ -172,9 +173,7 @@ class Trainer:
 
     def setup_optimization(self):
         self.loss_fn = nn.BCEWithLogitsLoss()
-        self.optimizer = optim.Adam(
-            self.classifier.parameters(), lr=self.config.learning_rate
-        )
+        self.optimizer = optim.Adam(self.classifier.parameters(), lr=self.config.learning_rate)
 
     def train_epoch(self, epoch: int):
         assert self.classifier is not None
@@ -184,9 +183,7 @@ class Trainer:
         self.classifier.train()
         total_loss = 0.0
 
-        progress_bar = tqdm(
-            self.loaders["train"], desc=f"Epoch {epoch}/{self.config.num_epochs}"
-        )
+        progress_bar = tqdm(self.loaders["train"], desc=f"Epoch {epoch}/{self.config.num_epochs}")
 
         for batch in progress_bar:
             # Handle variable number of items from loader
@@ -322,9 +319,7 @@ class Trainer:
 
             if self.early_stopping.improved:
                 # Save new best model (overwrites existing file due to fixed timestamp)
-                self.best_model_path, self.best_codes_path, self.best_config_path = (
-                    self.save_checkpoint(epoch, tags)
-                )
+                self.best_model_path, self.best_codes_path, self.best_config_path = self.save_checkpoint(epoch, tags)
 
             if self.early_stopping.early_stop:
                 logger.warning("Early stopping triggered!")
@@ -332,18 +327,10 @@ class Trainer:
 
             # Plot artifacts at the end
             if epoch == self.config.num_epochs:
-                self.evaluator.plot_overview_metrics(
-                    val_results["targets"], val_results["preds"], tags=tags
-                )
-                self.evaluator.plot_roc_curve(
-                    val_results["targets"], val_results["probs"], tags=tags
-                )
-                self.evaluator.plot_pr_curve(
-                    val_results["targets"], val_results["probs"], tags=tags
-                )
-                self.evaluator.save_per_class_metrics(
-                    val_results["targets"], val_results["preds"], tags=tags
-                )
+                self.evaluator.plot_overview_metrics(val_results["targets"], val_results["preds"], tags=tags)
+                self.evaluator.plot_roc_curve(val_results["targets"], val_results["probs"], tags=tags)
+                self.evaluator.plot_pr_curve(val_results["targets"], val_results["probs"], tags=tags)
+                self.evaluator.save_per_class_metrics(val_results["targets"], val_results["preds"], tags=tags)
 
     def save_checkpoint(self, epoch: int, tags: Dict[str, str]):
         """
@@ -445,26 +432,16 @@ class Trainer:
         # Regex Vectorizer
         if self.config.use_regex:
             regex_gen = RegexGenerator(self.config.csv_path)
-            self.regex_vectorizer = RegexVectorizer(
-                regex_gen, label_encoder=factory.encoder
-            )
+            self.regex_vectorizer = RegexVectorizer(regex_gen, label_encoder=factory.encoder)
 
         # 4. Vectorize Data
-        assert (
-            self.vectorizer is not None
-            or self.config.model_class == "RegexOnlyClassifier"
-        )
-        loaders = factory.get_vectorized_loader(
-            self.vectorizer, self.regex_vectorizer, splits=["train"]
-        )
+        assert self.vectorizer is not None or self.config.model_class == "RegexOnlyClassifier"
+        loaders = factory.get_vectorized_loader(self.vectorizer, self.regex_vectorizer, splits=["train"])
         eval_loader = loaders["train"]
 
         assert factory.encoder is not None, "Encoder must be initialized"
         self.num_classes = len(factory.encoder)
-        self.class_names = [
-            str(factory.encoder.idx2code.get(i + 1, i + 1))
-            for i in range(self.num_classes)
-        ]
+        self.class_names = [str(factory.encoder.idx2code.get(i + 1, i + 1)) for i in range(self.num_classes)]
 
         # 5. Setup Model and Load Weights
         self.setup_models()
@@ -661,9 +638,7 @@ class LLMRunner:
             # For evaluation, we need to map these to a consistent binary format or similar
             # We can create binary vectors for the long_tail_codes.
 
-            true_binary = [
-                1 if c in relevant_true_labels else 0 for c in long_tail_codes
-            ]
+            true_binary = [1 if c in relevant_true_labels else 0 for c in long_tail_codes]
             pred_binary = [1 if c in predicted_labels else 0 for c in long_tail_codes]
 
             all_true_labels.append(true_binary)
@@ -698,9 +673,7 @@ class LLMRunner:
         safe_model_name = self.model_name.replace("/", "_")
 
         # Set run name to model name and log tags
-        self.mlflow_logger.log_tags(
-            {"mlflow.runName": self.model_name, "text_model_name": self.model_name}
-        )
+        self.mlflow_logger.log_tags({"mlflow.runName": self.model_name, "text_model_name": self.model_name})
 
         # Calculate scalar metrics using Evaluator
         class_names = [str(c) for c in long_tail_codes]
@@ -716,38 +689,28 @@ class LLMRunner:
 
         # Per-class metrics
         evaluator.save_per_class_metrics(y_true, y_pred, tags=tags)
-        self.mlflow_logger.log_artifact(
-            f"artifacts/csv/per_class_metrics_{safe_model_name}.csv"
-        )
+        self.mlflow_logger.log_artifact(f"artifacts/csv/per_class_metrics_{safe_model_name}.csv")
 
         # Overview Metrics Plot
         evaluator.plot_overview_metrics(y_true, y_pred, tags=tags)
-        self.mlflow_logger.log_artifact(
-            f"artifacts/img/overview_metrics_{safe_model_name}.png"
-        )
+        self.mlflow_logger.log_artifact(f"artifacts/img/overview_metrics_{safe_model_name}.png")
 
         # ROC and PR curves
         evaluator.plot_roc_curve(y_true, y_pred, tags=tags)
-        self.mlflow_logger.log_artifact(
-            f"artifacts/img/roc_curve_{safe_model_name}.png"
-        )
+        self.mlflow_logger.log_artifact(f"artifacts/img/roc_curve_{safe_model_name}.png")
 
         evaluator.plot_pr_curve(y_true, y_pred, tags=tags)
         self.mlflow_logger.log_artifact(f"artifacts/img/pr_curve_{safe_model_name}.png")
 
     def run(self):
-        logger.info(
-            f"Starting LLM classification (threshold={self.threshold}, limit={self.limit})"
-        )
+        logger.info(f"Starting LLM classification (threshold={self.threshold}, limit={self.limit})")
 
         long_tail_codes, descriptions, factory, classifier = self._load_resources()
 
         if not classifier:
             return
 
-        predictions_data, all_true_labels, all_pred_labels = self._run_inference(
-            factory, classifier, long_tail_codes
-        )
+        predictions_data, all_true_labels, all_pred_labels = self._run_inference(factory, classifier, long_tail_codes)
 
         self._save_predictions(predictions_data)
         self._evaluate(all_true_labels, all_pred_labels, long_tail_codes)

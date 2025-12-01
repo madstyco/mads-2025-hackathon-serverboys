@@ -133,6 +133,7 @@ def train(
     ),
     patience: int = typer.Option(3, help="Early stopping patience"),
     min_delta: float = typer.Option(0.0, help="Early stopping min delta"),
+    use_nebius: bool = typer.Option(False, help="Use Nebius API for embeddings"),
 ):
     """
     Train a classifier model.
@@ -161,6 +162,7 @@ def train(
         patience=patience,
         min_delta=min_delta,
         device=device,
+        use_nebius=use_nebius,
     )
 
     trainer = Trainer(config)

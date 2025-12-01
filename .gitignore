@@ -13,8 +13,9 @@ wheels/
 data/
 dev/
 logs/
-artifacts/*
-!artifacts/.gitkeep
+# Keep artifacts tracked (models, metrics, vectorcache)
+# Note: vectorcache files >100MB require Git LFS
+artifacts/vectorcache/*.pt filter=lfs diff=lfs merge=lfs -text
 assets/*
 !assets/.gitkeep
 .env
