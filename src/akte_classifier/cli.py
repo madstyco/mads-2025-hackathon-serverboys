@@ -17,18 +17,10 @@ logger.add("logs/cli.log", rotation="1 MB", level="DEBUG")
 @app.command()
 def llm_classify(
     threshold: int = typer.Option(10, help="Threshold for long-tail labels"),
-    limit: Optional[int] = typer.Option(
-        None, help="Number of samples to classify (None for all)"
-    ),
-    model_name: str = typer.Option(
-        "meta-llama/Meta-Llama-3.1-8B-Instruct-fast", help="LLM model name"
-    ),
-    experiment_name: str = typer.Option(
-        "test_experiment", help="MLFlow experiment name"
-    ),
-    max_length: Optional[int] = typer.Option(
-        None, help="Max token length (None = auto/unlimited)"
-    ),
+    limit: Optional[int] = typer.Option(None, help="Number of samples to classify (None for all)"),
+    model_name: str = typer.Option("meta-llama/Meta-Llama-3.1-8B-Instruct-fast", help="LLM model name"),
+    experiment_name: str = typer.Option("test_experiment", help="MLFlow experiment name"),
+    max_length: Optional[int] = typer.Option(None, help="Max token length (None = auto/unlimited)"),
 ):
     """
     Classify long-tail samples using an LLM.
@@ -111,26 +103,16 @@ def train(
         "NeuralClassifier",
         help="Model class to use: NeuralClassifier, HybridClassifier, or RegexOnlyClassifier",
     ),
-    model_name: str = typer.Option(
-        "prajjwal1/bert-tiny", help="HuggingFace model name for text vectorization"
-    ),
+    model_name: str = typer.Option("prajjwal1/bert-tiny", help="HuggingFace model name for text vectorization"),
     epochs: int = typer.Option(10, help="Number of epochs"),
     batch_size: int = typer.Option(32, help="Batch size"),
     learning_rate: float = typer.Option(1e-3, help="Learning rate"),
     hidden_dim: int = typer.Option(256, help="Hidden layer dimension"),
-    max_length: Optional[int] = typer.Option(
-        None, help="Max token length (None = auto)"
-    ),
-    pooling: Optional[str] = typer.Option(
-        None, help="Pooling strategy: 'mean', 'cls', or None (auto)"
-    ),
-    experiment_name: str = typer.Option(
-        "kadaster_experiment", help="MLFlow experiment name"
-    ),
+    max_length: Optional[int] = typer.Option(None, help="Max token length (None = auto)"),
+    pooling: Optional[str] = typer.Option(None, help="Pooling strategy: 'mean', 'cls', or None (auto)"),
+    experiment_name: str = typer.Option("kadaster_experiment", help="MLFlow experiment name"),
     device: Optional[str] = None,
-    csv_path: str = typer.Option(
-        "assets/rechtsfeiten.csv", help="Path to CSV file with regex patterns"
-    ),
+    csv_path: str = typer.Option("assets/rechtsfeiten.csv", help="Path to CSV file with regex patterns"),
     patience: int = typer.Option(3, help="Early stopping patience"),
     min_delta: float = typer.Option(0.0, help="Early stopping min delta"),
     use_nebius: bool = typer.Option(False, help="Use Nebius API for embeddings"),
@@ -198,9 +180,7 @@ def regex(
     p = Path(output_path)
     output_path = str(p.with_name(f"{p.stem}_{regex_vectorizer.hash}{p.suffix}"))
 
-    vectorized_data = factory.get_vectorized_dataset(
-        vectorizer=None, regex_vectorizer=regex_vectorizer
-    )
+    vectorized_data = factory.get_vectorized_dataset(vectorizer=None, regex_vectorizer=regex_vectorizer)
     train_data = vectorized_data["train"]
 
     logger.info("Evaluating on training set...")
@@ -225,33 +205,19 @@ def regex(
 @app.command()
 def eval(
     eval_file: str = typer.Option(..., help="Path to file to evaluate"),
-    model_path: Optional[str] = typer.Option(
-        None, help="Path to saved model weights (.pt)"
-    ),
-    codes_path: Optional[str] = typer.Option(
-        None, help="Path to saved encoder codes (.json)"
-    ),
-    timestamp: Optional[str] = typer.Option(
-        None, help="Timestamp of the run to evaluate (e.g. 20251130_182204)"
-    ),
+    model_path: Optional[str] = typer.Option(None, help="Path to saved model weights (.pt)"),
+    codes_path: Optional[str] = typer.Option(None, help="Path to saved encoder codes (.json)"),
+    timestamp: Optional[str] = typer.Option(None, help="Timestamp of the run to evaluate (e.g. 20251130_182204)"),
     model_class: Optional[str] = typer.Option(
         None,
         help="Model class to use: NeuralClassifier, HybridClassifier, or RegexOnlyClassifier (auto-detected from config if not provided)",
     ),
-    model_name: str = typer.Option(
-        "prajjwal1/bert-tiny", help="HuggingFace model name for text vectorization"
-    ),
+    model_name: str = typer.Option("prajjwal1/bert-tiny", help="HuggingFace model name for text vectorization"),
     batch_size: int = typer.Option(32, help="Batch size"),
     hidden_dim: int = typer.Option(256, help="Hidden layer dimension"),
-    max_length: Optional[int] = typer.Option(
-        None, help="Max token length (None = auto)"
-    ),
-    pooling: Optional[str] = typer.Option(
-        None, help="Pooling strategy: 'mean', 'cls', or None (auto)"
-    ),
-    csv_path: str = typer.Option(
-        "assets/rechtsfeiten.csv", help="Path to label descriptions CSV"
-    ),
+    max_length: Optional[int] = typer.Option(None, help="Max token length (None = auto)"),
+    pooling: Optional[str] = typer.Option(None, help="Pooling strategy: 'mean', 'cls', or None (auto)"),
+    csv_path: str = typer.Option("assets/rechtsfeiten.csv", help="Path to label descriptions CSV"),
     device: Optional[str] = None,
 ):
     """
@@ -274,9 +240,7 @@ def eval(
             model_path = pt_files[0]
             logger.info(f"Resolved model path from timestamp: {model_path}")
         elif len(pt_files) > 1:
-            logger.error(
-                f"Ambiguous timestamp. Found {len(pt_files)} models matching {timestamp}."
-            )
+            logger.error(f"Ambiguous timestamp. Found {len(pt_files)} models matching {timestamp}.")
             raise typer.Exit(code=1)
         else:
             logger.error(f"No model found for timestamp {timestamp}.")
@@ -346,9 +310,7 @@ def eval(
     hidden_dim = loaded_config.get("hidden_dim", hidden_dim)
     max_length = loaded_config.get("max_length", max_length)
     pooling = loaded_config.get("pooling", pooling)
-    use_regex = loaded_config.get(
-        "use_regex", model_class in ["HybridClassifier", "RegexOnlyClassifier"]
-    )
+    use_regex = loaded_config.get("use_regex", model_class in ["HybridClassifier", "RegexOnlyClassifier"])
 
     logger.info(f"Starting evaluation on {eval_file}...")
     logger.info(f"Model Class: {model_class}, Model Name: {model_name}")
@@ -377,6 +339,151 @@ def eval(
     assert codes_path is not None, "Codes path must be provided or auto-detected"
     trainer.evaluate_file(eval_file, model_path, codes_path, csv_path=csv_path)
     logger.success("Evaluation completed.")
+
+
+@app.command()
+def eval_cascade(
+    eval_file: str = typer.Option(..., help="Path to test data JSONL file"),
+    timestamp: str = typer.Option(..., help="Model timestamp to load"),
+    confidence_threshold: float = typer.Option(0.99, help="Confidence threshold for LLM fallback (0-1)"),
+    llm_provider: str = typer.Option("nebius", help="LLM provider: openai, anthropic, or nebius"),
+    llm_model: str = typer.Option("openai/gpt-oss-120b", help="LLM model (default: OpenAI GPT 120B via Nebius)"),
+    limit: Optional[int] = typer.Option(None, help="Limit number of predictions (for testing)"),
+    device: Optional[str] = None,
+):
+    """
+    Evaluate cascade classifier (hybrid + LLM fallback) on test set.
+
+    Uses hybrid model for high-confidence predictions (≥threshold),
+    falls back to LLM for low-confidence cases.
+    """
+
+    from akte_classifier.datasets.dataset import DatasetFactory
+    from akte_classifier.models.cascade import load_cascade_classifier
+    from akte_classifier.utils.evaluation import Evaluator
+
+    logger.info("\n\n ======= Starting cascade evaluation =======")
+    logger.info(f"Confidence threshold: {confidence_threshold}")
+    logger.info(f"LLM provider: {llm_provider}, model: {llm_model}")
+
+    # Load cascade classifier
+    logger.info(f"Loading cascade classifier with timestamp {timestamp}...")
+    cascade = load_cascade_classifier(
+        model_timestamp=timestamp,
+        confidence_threshold=confidence_threshold,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+    )
+
+    # Load test data
+    logger.info(f"Loading test data from {eval_file}...")
+    factory = DatasetFactory(eval_file)
+    test_dataset = factory.train_dataset  # It's actually test data
+
+    if test_dataset is None:
+        logger.error("Failed to load test dataset")
+        raise typer.Exit(code=1)
+
+    # Load cached embeddings directly to avoid re-vectorization
+    import glob
+
+    import torch
+
+    logger.info("Looking for cached embeddings...")
+
+    # Find cached embedding files
+    cache_pattern = "artifacts/vectorcache/BAAI_bge-multilingual-gemma2_*_split80_test_embeddings.pt"
+    embedding_files = glob.glob(cache_pattern)
+
+    labels_pattern = "artifacts/vectorcache/BAAI_bge-multilingual-gemma2_*_split80_test_labels.pt"
+    labels_files = glob.glob(labels_pattern)
+
+    regex_pattern = "artifacts/vectorcache/regex_*_split80_test.pt"
+    regex_files = glob.glob(regex_pattern)
+
+    if not embedding_files or not regex_files or not labels_files:
+        logger.error("Cached embeddings not found! " "Please run training first to generate cached embeddings.")
+        raise typer.Exit(code=1)
+
+    # Load cached data
+    embedding_file = embedding_files[0]
+    labels_file = labels_files[0]
+    regex_file = regex_files[0]
+
+    logger.info(f"Loading cached embeddings from: {embedding_file}")
+    logger.info(f"Loading cached labels from: {labels_file}")
+    logger.info(f"Loading cached regex features from: {regex_file}")
+
+    embeddings = torch.load(embedding_file, map_location="cpu")
+    labels = torch.load(labels_file, map_location="cpu")
+    regex_features = torch.load(regex_file, map_location="cpu")
+
+    # Create dataset from cached data
+    from akte_classifier.datasets.dataset import VectorizedRechtsfeitDataset
+
+    test_data = VectorizedRechtsfeitDataset(
+        embeddings=embeddings,
+        labels=labels,
+        regex_features=regex_features,
+    )
+
+    # Prepare for evaluation
+    num_samples = len(test_data)
+    if limit:
+        num_samples = min(num_samples, limit)
+
+    logger.info(f"Evaluating {num_samples} samples...")
+
+    all_predictions = []
+    all_true_labels = []
+
+    # Evaluate each sample
+    for i in range(num_samples):
+        # Get text from original dataset (returns tuple: (text, label_tensor))
+        text, label_tensor = test_dataset[i]
+
+        # Get true label index from multi-hot encoded tensor
+        true_label_idx = torch.argmax(label_tensor).item()
+
+        # Get embeddings and regex features
+        text_emb = test_data.embeddings[i].unsqueeze(0)  # Add batch dimension
+        regex_feat = test_data.regex_features[i].unsqueeze(0)
+
+        # Get cascade prediction
+        result = cascade.predict(text, text_emb, regex_feat)
+
+        all_predictions.append(result["prediction"])
+        all_true_labels.append(factory.encoder.idx2code.get(true_label_idx, 0))
+
+        if (i + 1) % 10 == 0:
+            logger.info(f"Processed {i + 1}/{num_samples} samples...")
+
+    # Print cascade statistics
+    cascade.print_statistics()
+
+    # Calculate overall metrics
+    logger.info("\n\n ======= Overall Metrics =======")
+    evaluator = Evaluator(num_classes=len(factory.encoder))
+
+    # Convert predictions to indices
+    # Note: LLM might return strings, convert to int first
+    pred_indices = [factory.encoder.code2idx.get(int(p), 0) for p in all_predictions]
+    true_indices = [factory.encoder.code2idx.get(int(t), 0) for t in all_true_labels]
+
+    # Convert to numpy arrays for sklearn
+    import numpy as np
+
+    true_np = np.array(true_indices)
+    pred_np = np.array(pred_indices)
+
+    metrics = evaluator.compute_metrics(true_np, pred_np)
+
+    logger.success(f"F1 Micro: {metrics['f1_micro']:.4f}")
+    logger.success(f"F1 Macro: {metrics['f1_macro']:.4f}")
+    logger.success(f"Precision Micro: {metrics['precision_micro']:.4f}")
+    logger.success(f"Recall Micro: {metrics['recall_micro']:.4f}")
+
+    logger.success("\n\n ======= Cascade evaluation completed =======")
 
 
 if __name__ == "__main__":
